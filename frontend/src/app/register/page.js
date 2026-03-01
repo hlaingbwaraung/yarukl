@@ -9,9 +9,10 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 function RegisterForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('student');
+  const role = 'student';
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -34,7 +35,7 @@ function RegisterForm() {
     setLoading(true);
 
     try {
-      const data = await register(name, email, password, role);
+      const data = await register(name, email, password, role, phone);
       if (data.error) {
         setError(data.error);
       } else {
@@ -93,6 +94,16 @@ function RegisterForm() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="input-field"
+                placeholder="e.g. 09xxxxxxxxx"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
               <input
                 type="password"
@@ -114,33 +125,7 @@ function RegisterForm() {
                 required
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">I am a...</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRole('student')}
-                  className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                    role === 'student'
-                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                      : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
-                  }`}
-                >
-                  🎓 Student
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('teacher')}
-                  className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                    role === 'teacher'
-                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                      : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
-                  }`}
-                >
-                  👨‍🏫 Teacher
-                </button>
-              </div>
-            </div>
+
             <button
               type="submit"
               disabled={loading}

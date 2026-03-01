@@ -26,11 +26,11 @@ export async function login(email, password) {
   return res.json();
 }
 
-export async function register(name, email, password, role = 'student') {
+export async function register(name, email, password, role = 'student', phone = '') {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password, role }),
+    body: JSON.stringify({ name, email, password, role, phone }),
   });
   return res.json();
 }
@@ -124,11 +124,11 @@ export async function getQuizQuestions(level, category) {
   return res.json();
 }
 
-export async function submitQuiz(level, category, answers) {
+export async function submitQuiz(level, category, answers, partNumber) {
   const res = await fetch(`${API_URL}/quiz/submit`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify({ level, category, answers }),
+    body: JSON.stringify({ level, category, answers, partNumber }),
   });
   return res.json();
 }
@@ -162,6 +162,13 @@ export async function getAllDictionary(level) {
 // Analytics
 export async function getAdminAnalytics() {
   const res = await fetch(`${API_URL}/admin/analytics`, { headers: getHeaders() });
+  return res.json();
+}
+
+// Quiz Results (Admin)
+export async function getAdminQuizResults(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_URL}/admin/quiz-results?${query}`, { headers: getHeaders() });
   return res.json();
 }
 
@@ -221,6 +228,13 @@ export async function sendAdminMessage(data) {
 
 export async function markMessageRead(id) {
   const res = await fetch(`${API_URL}/admin/messages/${id}/read`, {
+    method: 'PUT', headers: getHeaders(),
+  });
+  return res.json();
+}
+
+export async function markMessageSeen(id) {
+  const res = await fetch(`${API_URL}/admin/messages/${id}/seen`, {
     method: 'PUT', headers: getHeaders(),
   });
   return res.json();

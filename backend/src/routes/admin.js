@@ -92,6 +92,73 @@ router.get('/analytics', async (req, res) => {
 // STUDENT MANAGEMENT
 // ============================================================
 
+// GET /api/admin/quiz-results - List all quiz results with student names
+router.get('/quiz-results', async (req, res) => {
+  try {
+    const { search, level, category, sort, order, page, limit } = req.query;
+    const pageNum = parseInt(page) || 1;
+    const pageSize = parseInt(limit) || 30;
+    const offset = (pageNum - 1) * pageSize;
+
+    let whereConditions = [];
+    let params = [];
+    let paramCount = 0;
+
+    if (search) {
+      paramCount++;
+      whereConditions.push(`(u.name ILIKE $${paramCount} OR u.email ILIKE $${paramCount})`);
+      params.push(`%${search}%`);
+    }
+    if (level) {
+      paramCount++;
+      whereConditions.push(`qr.level = $${paramCount}`);
+      params.push(level.toUpperCase());
+    }
+    if (category) {
+      paramCount++;
+      whereConditions.push(`qr.category = $${paramCount}`);
+      params.push(category);
+    }
+
+    const whereClause = whereConditions.length > 0
+      ? 'WHERE ' + whereConditions.join(' AND ')
+      : '';
+
+    const sortColumn = ['score', 'completed_at', 'level', 'category'].includes(sort)
+      ? `qr.${sort}` : 'qr.completed_at';
+    const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM quiz_results qr LEFT JOIN users u ON qr.user_id = u.id ${whereClause}`, params
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    const result = await pool.query(`
+      SELECT qr.id, qr.user_id, qr.level, qr.category, qr.score, qr.total, qr.completed_at,
+             u.name as student_name, u.email as student_email,
+             ROUND(qr.score::decimal / NULLIF(qr.total, 0) * 100) as percentage
+      FROM quiz_results qr
+      LEFT JOIN users u ON qr.user_id = u.id
+      ${whereClause}
+      ORDER BY ${sortColumn} ${sortOrder}
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `, [...params, pageSize, offset]);
+
+    res.json({
+      results: result.rows,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      }
+    });
+  } catch (err) {
+    console.error('Admin quiz results error:', err);
+    res.status(500).json({ error: 'Failed to fetch quiz results' });
+  }
+});
+
 // GET /api/admin/students - List all users with filtering
 router.get('/students', async (req, res) => {
   try {
@@ -470,6 +537,23 @@ router.post('/messages', async (req, res) => {
   }
 });
 
+// PUT /api/admin/messages/seen-bulk - Mark multiple messages as seen
+router.put('/messages/seen-bulk', async (req, res) => {
+  try {
+    const { messageIds } = req.body;
+    if (!messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
+      return res.status(400).json({ error: 'messageIds array is required' });
+    }
+    await pool.query(
+      `UPDATE messages SET is_seen = TRUE, seen_at = NOW() WHERE id = ANY($1) AND is_seen = FALSE`,
+      [messageIds]
+    );
+    res.json({ message: 'Messages marked as seen' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark messages as seen' });
+  }
+});
+
 // PUT /api/admin/messages/:id/read - Mark message as read
 router.put('/messages/:id/read', async (req, res) => {
   try {
@@ -480,6 +564,19 @@ router.put('/messages/:id/read', async (req, res) => {
     res.json({ message: 'Marked as read' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to mark as read' });
+  }
+});
+
+// PUT /api/admin/messages/:id/seen - Mark message as seen (admin only)
+router.put('/messages/:id/seen', async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE messages SET is_seen = TRUE, seen_at = NOW() WHERE id = $1 AND is_seen = FALSE`,
+      [req.params.id]
+    );
+    res.json({ message: 'Marked as seen' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark as seen' });
   }
 });
 

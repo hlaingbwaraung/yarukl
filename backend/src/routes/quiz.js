@@ -22,7 +22,7 @@ router.get('/questions/:level', authMiddleware, async (req, res) => {
       params.push(category);
     }
 
-    query += ' ORDER BY RANDOM()';
+    query += ' ORDER BY RANDOM() LIMIT 20';
 
     const result = await pool.query(query, params);
     res.json({ questions: result.rows, total: result.rows.length });
@@ -35,12 +35,16 @@ router.get('/questions/:level', authMiddleware, async (req, res) => {
 // POST /api/quiz/submit - Submit quiz answers and get score
 router.post('/submit', authMiddleware, async (req, res) => {
   try {
-    const { level, category, answers } = req.body;
+    const { level, category, answers, partNumber } = req.body;
     // answers = [{ questionId: 1, answer: 'A' }, ...]
 
     if (!level || !answers || !Array.isArray(answers)) {
       return res.status(400).json({ error: 'Level and answers array are required.' });
     }
+
+    // Fetch student name
+    const userResult = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
+    const studentName = userResult.rows[0]?.name || 'Unknown';
 
     const questionIds = answers.map(a => a.questionId);
     const result = await pool.query(
@@ -56,24 +60,26 @@ router.post('/submit', authMiddleware, async (req, res) => {
     let score = 0;
     const details = answers.map(a => {
       const correct = correctMap[a.questionId];
-      const isCorrect = correct && a.answer.toUpperCase() === correct.correct;
+      const isCorrect = correct && a.answer && correct && a.answer.toUpperCase() === correct.correct;
       if (isCorrect) score++;
       return {
         questionId: a.questionId,
-        yourAnswer: a.answer,
+        yourAnswer: a.answer || '(no answer)',
         correctAnswer: correct ? correct.correct : null,
         isCorrect,
         explanation: correct ? correct.explanation : null
       };
     });
 
-    // Save result
+    // Save result with part number
     await pool.query(
       'INSERT INTO quiz_results (user_id, level, category, score, total) VALUES ($1, $2, $3, $4, $5)',
       [req.user.id, level, category || 'mixed', score, answers.length]
     );
 
     res.json({
+      studentName,
+      partNumber: partNumber || 1,
       score,
       total: answers.length,
       percentage: Math.round((score / answers.length) * 100),

@@ -9,6 +9,10 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
   role VARCHAR(20) DEFAULT 'student' CHECK (role IN ('student', 'teacher', 'admin')),
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'blocked')),
+  phone VARCHAR(50),
+  notes TEXT,
+  last_login TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -94,6 +98,8 @@ CREATE TABLE IF NOT EXISTS messages (
   subject VARCHAR(255) NOT NULL,
   body TEXT NOT NULL,
   is_read BOOLEAN DEFAULT FALSE,
+  is_seen BOOLEAN DEFAULT FALSE,
+  seen_at TIMESTAMP,
   parent_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

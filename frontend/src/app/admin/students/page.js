@@ -209,6 +209,10 @@ function StudentDetailModal({ studentId, onClose }) {
                 }`}>{data.user.status || 'active'}</span>
               </div>
               <div>
+                <p className="text-xs text-gray-500">Phone</p>
+                <p className="text-sm font-medium">{data.user.phone || <span className="text-gray-400">—</span>}</p>
+              </div>
+              <div>
                 <p className="text-xs text-gray-500">Joined</p>
                 <p className="text-sm">{new Date(data.user.created_at).toLocaleDateString()}</p>
               </div>

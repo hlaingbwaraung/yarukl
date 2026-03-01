@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 const sidebarLinks = [
   { href: '/admin', label: 'Dashboard', icon: '📊' },
   { href: '/admin/students', label: 'Students', icon: '👥' },
+  { href: '/admin/quiz-results', label: 'Quiz Results', icon: '🎯' },
   { href: '/admin/homework', label: 'Homework', icon: '📝' },
   { href: '/admin/messages', label: 'Messages', icon: '💬' },
   { href: '/admin/announcements', label: 'Announcements', icon: '📢' },

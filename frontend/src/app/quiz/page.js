@@ -1,13 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getQuizQuestions, submitQuiz, getQuizHistory } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+
+const TIMER_SECONDS = 30;
+const QUESTIONS_PER_PART = 20;
 
 export default function QuizPage() {
+  const { user } = useAuth();
   const [phase, setPhase] = useState('select'); // select | quiz | result
   const [level, setLevel] = useState(null);
   const [category, setCategory] = useState(null);
-  const [questions, setQuestions] = useState([]);
+  const [allQuestions, setAllQuestions] = useState([]); // all fetched questions
+  const [questions, setQuestions] = useState([]); // current part questions
+  const [currentPart, setCurrentPart] = useState(1);
+  const [totalParts, setTotalParts] = useState(1);
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState({});
   const [selectedOption, setSelectedOption] = useState(null);
@@ -15,10 +23,53 @@ export default function QuizPage() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
+  const [timeLeft, setTimeLeft] = useState(TIMER_SECONDS);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     loadHistory();
   }, []);
+
+  function stopTimer() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  function startTimer() {
+    stopTimer();
+    setTimeLeft(TIMER_SECONDS);
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  // Auto-advance when timer hits 0 during active question
+  useEffect(() => {
+    if (phase === 'quiz' && timeLeft === 0 && !showFeedback) {
+      setShowFeedback(true);
+      // Mark as unanswered (no selectedOption set)
+    }
+  }, [timeLeft, phase, showFeedback]);
+
+  // Start timer whenever we move to a new question
+  useEffect(() => {
+    if (phase === 'quiz') {
+      startTimer();
+    } else {
+      stopTimer();
+    }
+    return () => stopTimer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, currentQ]);
 
   async function loadHistory() {
     try {
@@ -29,6 +80,12 @@ export default function QuizPage() {
     }
   }
 
+  function getPartQuestions(allQs, part) {
+    const start = (part - 1) * QUESTIONS_PER_PART;
+    const end = start + QUESTIONS_PER_PART;
+    return allQs.slice(start, end);
+  }
+
   async function startQuiz(selectedLevel, selectedCategory) {
     setLoading(true);
     setLevel(selectedLevel);
@@ -37,7 +94,12 @@ export default function QuizPage() {
     try {
       const data = await getQuizQuestions(selectedLevel, selectedCategory);
       if (data.questions && data.questions.length > 0) {
-        setQuestions(data.questions);
+        const allQs = data.questions;
+        const parts = Math.ceil(allQs.length / QUESTIONS_PER_PART);
+        setAllQuestions(allQs);
+        setTotalParts(parts);
+        setCurrentPart(1);
+        setQuestions(getPartQuestions(allQs, 1));
         setPhase('quiz');
         setCurrentQ(0);
         setAnswers({});
@@ -54,6 +116,7 @@ export default function QuizPage() {
 
   function handleAnswer(option) {
     if (showFeedback) return;
+    stopTimer();
     setSelectedOption(option);
     setShowFeedback(true);
     setAnswers((prev) => ({ ...prev, [questions[currentQ].id]: option }));
@@ -71,13 +134,14 @@ export default function QuizPage() {
 
   async function finishQuiz() {
     setLoading(true);
-    const answerArray = Object.entries(answers).map(([qId, ans]) => ({
-      questionId: parseInt(qId),
-      answer: ans,
+    // Build answers for current part, including unanswered questions
+    const answerArray = questions.map((q) => ({
+      questionId: q.id,
+      answer: answers[q.id] || '',
     }));
 
     try {
-      const data = await submitQuiz(level, category, answerArray);
+      const data = await submitQuiz(level, category, answerArray, currentPart);
       setResult(data);
       setPhase('result');
       loadHistory();
@@ -87,16 +151,33 @@ export default function QuizPage() {
     setLoading(false);
   }
 
-  function resetQuiz() {
-    setPhase('select');
-    setLevel(null);
-    setCategory(null);
-    setQuestions([]);
+  function startNextPart() {
+    const nextPart = currentPart + 1;
+    setCurrentPart(nextPart);
+    setQuestions(getPartQuestions(allQuestions, nextPart));
+    setPhase('quiz');
     setCurrentQ(0);
     setAnswers({});
     setResult(null);
     setSelectedOption(null);
     setShowFeedback(false);
+  }
+
+  function resetQuiz() {
+    stopTimer();
+    setPhase('select');
+    setLevel(null);
+    setCategory(null);
+    setAllQuestions([]);
+    setQuestions([]);
+    setCurrentPart(1);
+    setTotalParts(1);
+    setCurrentQ(0);
+    setAnswers({});
+    setResult(null);
+    setSelectedOption(null);
+    setShowFeedback(false);
+    setTimeLeft(TIMER_SECONDS);
   }
 
   // Level Selection Phase
@@ -217,9 +298,36 @@ export default function QuizPage() {
               <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded text-xs font-medium mr-2">
                 {level}
               </span>
-              {category && <span>{category === 'kanji' ? 'ကန်ဂျီ' : category === 'grammar' ? 'သဒ္ဒါ' : 'ရောနှော'}</span>}
+              {category && <span className="mr-2">{category === 'kanji' ? 'ကန်ဂျီ' : category === 'grammar' ? 'သဒ္ဒါ' : 'ရောနှော'}</span>}
+              {totalParts > 1 && (
+                <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded text-xs font-medium">
+                  Part {currentPart}/{totalParts}
+                </span>
+              )}
             </span>
-            <span>မေးခွန်း {currentQ + 1} / {questions.length}</span>
+            <div className="flex items-center gap-3">
+              <span>မေးခွန်း {currentQ + 1} / {questions.length}</span>
+              {/* Circular Timer */}
+              <div className="relative w-10 h-10 flex-shrink-0">
+                <svg className="w-10 h-10 transform -rotate-90" viewBox="0 0 40 40">
+                  <circle cx="20" cy="20" r="16" stroke="#e5e7eb" strokeWidth="3" fill="none" />
+                  <circle
+                    cx="20" cy="20" r="16"
+                    stroke={timeLeft <= 5 ? '#ef4444' : timeLeft <= 10 ? '#f59e0b' : '#6366f1'}
+                    strokeWidth="3"
+                    fill="none"
+                    strokeDasharray={`${(timeLeft / TIMER_SECONDS) * 100.5} 100.5`}
+                    strokeLinecap="round"
+                    className="transition-all duration-1000"
+                  />
+                </svg>
+                <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold ${
+                  timeLeft <= 5 ? 'text-red-500' : timeLeft <= 10 ? 'text-yellow-500' : 'text-indigo-600 dark:text-indigo-400'
+                }`}>
+                  {timeLeft}
+                </span>
+              </div>
+            </div>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
@@ -273,6 +381,9 @@ export default function QuizPage() {
         {/* Next / Finish Button */}
         {showFeedback && (
           <div className="text-center">
+            {!selectedOption && (
+              <p className="text-red-500 dark:text-red-400 text-sm font-medium mb-3">⏰ အချိန်ကုန်သွားပါပြီ! (Time&apos;s up!)</p>
+            )}
             <button
               onClick={nextQuestion}
               disabled={loading}
@@ -289,6 +400,8 @@ export default function QuizPage() {
   // Result Phase
   if (phase === 'result' && result) {
     const percentage = result.percentage;
+    const studentName = result.studentName || user?.name || 'Student';
+    const hasNextPart = currentPart < totalParts;
     let emoji = '😢';
     let message = 'ဆက်ကြိုးစားပါ! မလေ့မနေပါနဲ့!';
     if (percentage >= 80) { emoji = '🎉'; message = 'အရမ်းတော်ပါတယ်! ဂုဏ်ယူပါတယ်!'; }
@@ -300,6 +413,14 @@ export default function QuizPage() {
         {/* Score Card */}
         <div className="card text-center mb-8">
           <div className="text-6xl mb-4">{emoji}</div>
+          {/* Student Name */}
+          <p className="text-lg font-medium text-indigo-600 dark:text-indigo-400 mb-1">👤 {studentName}</p>
+          {/* Part indicator */}
+          {totalParts > 1 && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 font-medium mb-3">
+              📋 Part {currentPart} / {totalParts}
+            </p>
+          )}
           <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             {result.score} / {result.total}
           </h2>
@@ -366,7 +487,12 @@ export default function QuizPage() {
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <button onClick={resetQuiz} className="btn-primary">
+          {hasNextPart && (
+            <button onClick={startNextPart} className="btn-primary">
+              ▶️ နောက် Part {currentPart + 1} စတင်ရန်
+            </button>
+          )}
+          <button onClick={resetQuiz} className={hasNextPart ? 'btn-secondary' : 'btn-primary'}>
             🔄 အခြားမေးခွန်း ဖြေရန်
           </button>
           <button onClick={() => startQuiz(level, category)} className="btn-secondary">

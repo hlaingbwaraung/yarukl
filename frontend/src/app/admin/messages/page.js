@@ -164,9 +164,30 @@ function MessageDetailModal({ message, onClose, onRead }) {
         <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
           <div className="flex-1 min-w-0 mr-3">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{message.subject}</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Conversation with {message.sender_id === user?.id ? message.receiver_name : message.sender_name}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Conversation with {message.sender_id === user?.id ? message.receiver_name : message.sender_name}
+              </p>
+              {/* Show seen status only for messages admin SENT (read receipt from student) */}
+              {message.sender_id === user?.id && (
+                message.is_seen ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-1.5 py-0.5 rounded-full">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Seen {message.seen_at ? new Date(message.seen_at).toLocaleString() : ''}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded-full">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                    Not seen
+                  </span>
+                )
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl leading-none">&times;</button>
         </div>
@@ -193,6 +214,29 @@ function MessageDetailModal({ message, onClose, onRead }) {
                   </span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                {/* Show seen receipt under admin's own sent messages */}
+                {msg.sender_id === user?.id && (
+                  <div className={`flex items-center gap-1 mt-1 ${msg.is_seen ? 'text-indigo-200' : 'text-indigo-300/50'}`}>
+                    {msg.is_seen ? (
+                      <>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <svg className="w-3 h-3 -ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-[10px] ml-0.5">Seen</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-[10px] ml-0.5">Sent</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )) : (
@@ -340,23 +384,42 @@ export default function MessagesPage() {
                 </div>
                 <div className="flex-1 min-w-0" onClick={() => setSelectedMessage(msg)}>
                   <div className="flex items-center gap-2">
-                    <p className={`text-sm ${!msg.is_read && tab === 'inbox' ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                    <p className={`text-sm ${!msg.is_read && tab === 'inbox' ? 'font-semibold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-300'}`}>
                       {tab === 'inbox' ? msg.sender_name : msg.receiver_name}
                     </p>
                     {!msg.is_read && tab === 'inbox' && (
                       <span className="w-2 h-2 bg-indigo-600 rounded-full"></span>
                     )}
                   </div>
-                  <p className={`text-sm truncate ${!msg.is_read && tab === 'inbox' ? 'font-medium text-gray-800' : 'text-gray-600'}`}>
+                  <p className={`text-sm truncate ${!msg.is_read && tab === 'inbox' ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>
                     {msg.subject}
                   </p>
-                  <p className="text-xs text-gray-400 truncate mt-0.5">{msg.body?.substring(0, 100)}...</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{msg.body?.substring(0, 100)}...</p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-gray-400">{new Date(msg.created_at).toLocaleDateString()}</span>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {/* Seen status - only show on SENT tab (read receipt from student) */}
+                  {tab === 'sent' && (
+                    msg.is_seen ? (
+                      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400" title={`Seen at ${msg.seen_at ? new Date(msg.seen_at).toLocaleString() : ''}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        Seen
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500" title="Not seen yet">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                        </svg>
+                        Unseen
+                      </span>
+                    )
+                  )}
+                  <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(msg.created_at).toLocaleDateString()}</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
-                    className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600"
+                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-400 hover:text-red-600 dark:hover:text-red-400"
                     title="Delete"
                   >🗑️</button>
                 </div>

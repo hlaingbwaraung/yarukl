@@ -156,6 +156,20 @@ router.get('/:id', async (req, res) => {
       result.rows[0].is_read = true;
     }
 
+    // Auto-mark as seen (read receipt) - when receiver opens the message
+    if (result.rows[0].receiver_id === req.user.id && !result.rows[0].is_seen) {
+      await pool.query(`UPDATE messages SET is_seen = TRUE, seen_at = NOW() WHERE id = $1`, [req.params.id]);
+      result.rows[0].is_seen = true;
+      result.rows[0].seen_at = new Date();
+    }
+
+    // Also mark all messages in this thread as seen by this receiver
+    const parentId = result.rows[0].parent_id || req.params.id;
+    await pool.query(
+      `UPDATE messages SET is_seen = TRUE, seen_at = NOW() WHERE (parent_id = $1 OR id = $1) AND receiver_id = $2 AND is_seen = FALSE`,
+      [parentId, req.user.id]
+    );
+
     // Get conversation thread (the original + all replies in the chain)
     const thread = await pool.query(`
       SELECT m.*, 

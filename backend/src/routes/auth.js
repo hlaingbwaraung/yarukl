@@ -9,7 +9,7 @@ const router = express.Router();
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required.' });
@@ -22,11 +22,11 @@ router.post('/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const userRole = role === 'teacher' ? 'teacher' : 'student'; // Only allow student/teacher via registration
+    const userRole = 'student'; // Only students can self-register
 
     const result = await pool.query(
-      'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
-      [name, email, hashedPassword, userRole]
+      'INSERT INTO users (name, email, password, role, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, phone',
+      [name, email, hashedPassword, userRole, phone || null]
     );
 
     const user = result.rows[0];
@@ -66,6 +66,13 @@ router.post('/login', async (req, res) => {
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
+
+    if (user.status === 'suspended' || user.status === 'blocked') {
+      return res.status(403).json({ error: 'Your account has been suspended. Please contact support.' });
+    }
+
+    // Update last_login
+    await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
